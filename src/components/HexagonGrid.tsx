@@ -29,34 +29,39 @@ const HexagonGrid = ({ map }) => {
     const radius = 50000; // Радиус шестиугольника в метрах
     const startX = 4180709; // Начальная координата X (Москва)
     const startY = 7506893; // Начальная координата Y
-    const rows = 50;
-    const cols = 50;
+    const r_frid = 4; // Радиус сетки
+    const rows = 5;
+    const cols = 5;
 
-    // Генерация шестиугольников
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const x = startX + col * radius * 1.5;
-        const yOffset = row % 2 === 0 ? 0 : radius * 0.75;
-        const y = startY + row * radius * Math.sqrt(3) + yOffset;
+  // Генерация шестиугольников
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const sx = radius * 1.5;
+      const sy = radius * (Math.sqrt(3)/2)
+      const x = startX + sx * row;
+      const y = startY + sy * col * 2 + row % 2 * sy;;
+      //const x = startX + col * radius * 1.5; // Определяем координату X
+      //const yOffset = row % 2 === 0 ? 0 : radius; // Сдвиг по Y для четных/нечетных рядов
+      //const y = startY + row * radius * Math.sqrt(3) + yOffset; // Определяем координату Y
 
-        // Создание геометрии шестиугольника
-        const coordinates = [];
-        for (let i = 0; i < 6; i++) {
-          const angle = (i * Math.PI) / 3;
-          const dx = radius * Math.cos(angle);
-          const dy = radius * Math.sin(angle);
-          coordinates.push([x + dx, y + dy]);
-        }
-        coordinates.push(coordinates[0]); // Замыкаем полигон
-
-        const hexagon = new Feature({
-          geometry: new Polygon([coordinates]),
-          id: `hex-${row}-${col}`
-        });
-
-        vectorSource.addFeature(hexagon);
+      // Создание геометрии шестиугольника
+      const coordinates = [];
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3; // Угол для каждого из 6 углов шестиугольника
+        const dx = radius * Math.cos(angle); // Смещение по X
+        const dy = radius * Math.sin(angle); // Смещение по Y
+        coordinates.push([x + dx, y + dy]); // Добавляем координаты углов шестиугольника
       }
+      coordinates.push(coordinates[0]); // Замыкаем полигон
+
+      const hexagon = new Feature({
+        geometry: new Polygon([coordinates]),
+        id: `hex-${row}-${col}`
+      });
+
+      vectorSource.addFeature(hexagon); // Добавляем шестиугольник в векторный источник
     }
+  }
 
     // Добавляем слой на карту
     map.addLayer(vectorLayer);
