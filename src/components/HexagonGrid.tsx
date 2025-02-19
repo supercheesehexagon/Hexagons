@@ -6,15 +6,21 @@ import { Polygon } from 'ol/geom';
 import { Style, Stroke, Fill } from 'ol/style';
 import { transform } from 'ol/proj';
 import { cellToLatLng, cellToBoundary, latLngToCell, gridDisk } from 'h3-js';
+import type { Map } from 'ol';
+import type { MapBrowserEvent } from 'ol';
 
-const HexagonGrid = ({ map }) => {
+interface HexagonGridProps {
+  map: Map | null; // Map из OpenLayers или null
+}
+
+const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
   useEffect(() => {
     if (!map) return;
     // Цвета для стилей
     const HexColor = 'rgba(51, 153, 204, 0.2)'
-    const BorderHexColor = 'rgba(24, 69, 92, 0.5)'
-    const ActHexColor = 'rgba(255, 0, 0, 0.2)'
-    const ActBorderHexColor = 'rgba(130, 0, 0, 0.5)'
+    const BorderHexColor = 'rgba(51, 153, 204, 0.9)'
+    const ActHexColor = 'rgba(204, 51, 51, 0.2)'
+    const ActBorderHexColor = 'rgba(204, 51, 51, 0.9)'
 
 
     const vectorSource = new VectorSource();
@@ -41,13 +47,14 @@ const HexagonGrid = ({ map }) => {
         longitude: 56.2294  // Долгота 
       };
     
+      /*
       // Преобразование в EPSG:3857
       const Perm3857 = transform(
         [Perm4326.longitude, Perm4326.latitude],
         'EPSG:4326',
         'EPSG:3857'
       );
-    
+      */
 
     const centerCell = latLngToCell(
       Perm4326.latitude, // Долгота (longitude)
@@ -87,9 +94,10 @@ const HexagonGrid = ({ map }) => {
     map.addLayer(vectorLayer);
 
     // Обработчик кликов
-    const clickHandler = (event) => {
+    const clickHandler = (event: MapBrowserEvent<UIEvent>) => {
       map.forEachFeatureAtPixel(event.pixel, (feature) => {
-        
+        if (!(feature instanceof Feature)) return;
+
         const isSelected = !feature.get('selected');
         feature.set('selected', isSelected);
 
