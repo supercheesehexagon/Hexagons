@@ -5,80 +5,114 @@ import { Vector as VectorSource } from 'ol/source';
 import { Feature } from 'ol';
 import { Polygon } from 'ol/geom';
 import { Style, Stroke, Fill } from 'ol/style';
+import { transform } from 'ol/proj';
+import { cellToLatLng, cellToBoundary, latLngToCell, gridDisk } from 'h3-js';
 
 const HexagonGrid = ({ map }) => {
   useEffect(() => {
     if (!map) return;
 
-    // Создаем векторный слой
+    const HexColor = 'rgba(51, 153, 204, 0.4)'
+    const BorderHexColor = 'rgba(24, 69, 92, 0.5)'
+    const ActHexColor = 'rgba(255, 0, 0, 0.4)'
+    const ActBorderHexColor = 'rgba(130, 0, 0, 0.5)'
+
+
     const vectorSource = new VectorSource();
     const vectorLayer = new VectorLayer({
       source: vectorSource,
       style: new Style({
         stroke: new Stroke({
-          color: '#3399CC',
+          color: BorderHexColor,
           width: 2
         }),
         fill: new Fill({
-          color: 'rgba(51, 153, 204, 0.2)'
+          color: HexColor
         })
-      })
+      }),
+      zIndex: 1000
     });
 
-    // Параметры сетки
-    const radius = 50000; // Радиус шестиугольника в метрах
-    const startX = 4180709; // Начальная координата X (Москва)
-    const startY = 7506893; // Начальная координата Y
-    const r_frid = 4; // Радиус сетки
-    const rows = 5;
-    const cols = 5;
+    // Параметры
+    const resolution = 5; // Размер
+    const gridRadius = 10; // Радиус
 
-  // Генерация шестиугольников
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const sx = radius * 1.5;
-      const sy = radius * (Math.sqrt(3)/2)
-      const x = startX + sx * row;
-      const y = startY + sy * col * 2 + row % 2 * sy;;
-      //const x = startX + col * radius * 1.5; // Определяем координату X
-      //const yOffset = row % 2 === 0 ? 0 : radius; // Сдвиг по Y для четных/нечетных рядов
-      //const y = startY + row * radius * Math.sqrt(3) + yOffset; // Определяем координату Y
+    // Координаты центра (Москва)
+    const centerMoscow3857 = [4180709, 7506893]; // EPSG:3857
+    const centerMoscow4326 = transform(
+      centerMoscow3857, 
+      'EPSG:3857', 
+      'EPSG:4326'
+    );
 
-      // Создание геометрии шестиугольника
-      const coordinates = [];
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3; // Угол для каждого из 6 углов шестиугольника
-        const dx = radius * Math.cos(angle); // Смещение по X
-        const dy = radius * Math.sin(angle); // Смещение по Y
-        coordinates.push([x + dx, y + dy]); // Добавляем координаты углов шестиугольника
-      }
-      coordinates.push(coordinates[0]); // Замыкаем полигон
+    // Исправленный порядок координат (lat, lng)
+    const centerCell = latLngToCell(
+      centerMoscow4326[1], // Широта (latitude)
+      centerMoscow4326[0], // Долгота (longitude)
+      resolution
+    );
+    
+    const hexCells = gridDisk(centerCell, gridRadius);
+    console.log('Generated cells:', hexCells.length);
+
+    hexCells.forEach((h3Index) => {
+      const coords = cellToBoundary(h3Index, true); // [ [lng, lat], ... ]
+      
+      // Правильное преобразование координат
+      const polygonCoords = coords.map(coord => 
+        transform(
+          [coord[0], // Долгота (longitude)
+           coord[1]], // Широта (latitude)
+          'EPSG:4326',
+          'EPSG:3857'
+        )
+      );
+      
+      // Замыкание полигона
+      polygonCoords.push(polygonCoords[0]);
 
       const hexagon = new Feature({
-        geometry: new Polygon([coordinates]),
-        id: `hex-${row}-${col}`
+        geometry: new Polygon([polygonCoords]),
+        h3Index: h3Index
       });
 
-      vectorSource.addFeature(hexagon); // Добавляем шестиугольник в векторный источник
-    }
-  }
+      vectorSource.addFeature(hexagon);
+    });
 
-    // Добавляем слой на карту
     map.addLayer(vectorLayer);
 
-    // Обработка кликов
+    // Обработчик кликов
     const clickHandler = (event) => {
-      const features = map.getFeaturesAtPixel(event.pixel);
-      if (features.length > 0) {
-        const feature = features[0];
-        console.log('Clicked hexagon:', feature.get('id'));
-        // Можно добавить дополнительную логику при клике
-      }
+      map.forEachFeatureAtPixel(event.pixel, (feature) => {
+        
+        const isSelected = !feature.get('selected');
+        feature.set('selected', isSelected);
+
+        const h3Index = feature.get('h3Index');
+        console.log('Clicked:', cellToLatLng(h3Index)); //Выводим корды
+
+        const newStyle = new Style({
+          stroke: new Stroke({
+            color: isSelected 
+              ? ActBorderHexColor // Красный для выбранных
+              : BorderHexColor, // Синий по умолчанию
+            width: 2
+          }),
+          fill: new Fill({
+            color: isSelected 
+              ? ActHexColor // Красный для выбранных
+              : HexColor // Синий по умолчанию
+          })      
+        })
+
+        feature.setStyle(newStyle);
+        vectorSource.changed();
+
+      })
     };
 
     map.on('click', clickHandler);
 
-    // Очистка
     return () => {
       map.removeLayer(vectorLayer);
       map.un('click', clickHandler);

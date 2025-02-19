@@ -5,6 +5,7 @@ import TileLayer from 'ol/layer/Tile';
 import OSM from 'ol/source/OSM';
 import 'ol/ol.css';
 import HexagonGrid from './HexagonGrid';
+import { getCenter } from 'ol/extent';
 
 const MapComponent = () => {
   const mapRef = useRef(null);
@@ -32,7 +33,7 @@ const MapComponent = () => {
   }, []);
 
   return (
-    <div ref={mapRef} style={{ width: '3000px', height: '2000px' }}>
+    <div ref={mapRef} style={{ width: '3000px', height: '2000px', position: 'relative', right:'-1000px' }}>
       {map && <HexagonGrid map={map} />}
     </div>
   );
