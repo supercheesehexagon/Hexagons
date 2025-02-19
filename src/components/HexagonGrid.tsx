@@ -1,4 +1,3 @@
-// src/components/HexagonGrid.jsx
 import { useEffect } from 'react';
 import { Vector as VectorLayer } from 'ol/layer';
 import { Vector as VectorSource } from 'ol/source';
@@ -11,10 +10,10 @@ import { cellToLatLng, cellToBoundary, latLngToCell, gridDisk } from 'h3-js';
 const HexagonGrid = ({ map }) => {
   useEffect(() => {
     if (!map) return;
-
-    const HexColor = 'rgba(51, 153, 204, 0.4)'
+    // Цвета для стилей
+    const HexColor = 'rgba(51, 153, 204, 0.2)'
     const BorderHexColor = 'rgba(24, 69, 92, 0.5)'
-    const ActHexColor = 'rgba(255, 0, 0, 0.4)'
+    const ActHexColor = 'rgba(255, 0, 0, 0.2)'
     const ActBorderHexColor = 'rgba(130, 0, 0, 0.5)'
 
 
@@ -30,35 +29,40 @@ const HexagonGrid = ({ map }) => {
           color: HexColor
         })
       }),
-      zIndex: 1000
     });
 
-    // Параметры
-    const resolution = 5; // Размер
-    const gridRadius = 10; // Радиус
+    // Параметры шестиугольников
+    const resolution = 8; // Размер (от 15 до 0 возрастает)
+    const gridRadius = 15; // Радиус прорисовки(количество)
 
-    // Координаты центра (Москва)
-    const centerMoscow3857 = [4180709, 7506893]; // EPSG:3857
-    const centerMoscow4326 = transform(
-      centerMoscow3857, 
-      'EPSG:3857', 
-      'EPSG:4326'
-    );
+    // Корды Перми
+      const Perm4326 = {
+        latitude: 58.0104, // Широта
+        longitude: 56.2294  // Долгота 
+      };
+    
+      // Преобразование в EPSG:3857
+      const Perm3857 = transform(
+        [Perm4326.longitude, Perm4326.latitude],
+        'EPSG:4326',
+        'EPSG:3857'
+      );
+    
 
-    // Исправленный порядок координат (lat, lng)
     const centerCell = latLngToCell(
-      centerMoscow4326[1], // Широта (latitude)
-      centerMoscow4326[0], // Долгота (longitude)
+      Perm4326.latitude, // Долгота (longitude)
+      Perm4326.longitude, // Широта (latitude)
       resolution
     );
     
     const hexCells = gridDisk(centerCell, gridRadius);
-    console.log('Generated cells:', hexCells.length);
+    console.log('Generated cells:', hexCells.length); // Выводим число гексов
 
     hexCells.forEach((h3Index) => {
-      const coords = cellToBoundary(h3Index, true); // [ [lng, lat], ... ]
+
+      const coords = cellToBoundary(h3Index, true);
       
-      // Правильное преобразование координат
+      // Преобразование координат
       const polygonCoords = coords.map(coord => 
         transform(
           [coord[0], // Долгота (longitude)
@@ -77,6 +81,7 @@ const HexagonGrid = ({ map }) => {
       });
 
       vectorSource.addFeature(hexagon);
+
     });
 
     map.addLayer(vectorLayer);
