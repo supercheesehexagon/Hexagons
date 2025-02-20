@@ -1,4 +1,3 @@
-// Исправленный код:
 import { useEffect, useRef, useState } from 'react';
 import { Map, View } from 'ol';
 import TileLayer from 'ol/layer/Tile';
@@ -30,7 +29,7 @@ const MapComponent = () => {
           'EPSG:4326',
           'EPSG:3857'
         ),
-        zoom: 13
+        zoom: 18
       })
     });
 
