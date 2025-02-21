@@ -22,6 +22,27 @@ const zoomToResolution = (zoom: number): number => {
 
 
 const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
+  const [polygonInfo, setPolygonInfo] = useState<{[key: string]: any}>({});
+
+  // Функции для API запросов
+  const fetchPolygonInfo = async (h3Index: string) => {
+    try {
+      // Если уровень 10
+      if(currentResolution == 10){
+        const response = await fetch(`/api/polygon/${h3Index}/info`);
+        const data = await response.json();
+        return data;
+      }
+      else{
+        const response = await fetch(`/api/polygon/${currentResolution}/${h3Index}/info`);
+        const data = await response.json();
+        return data;     
+      }
+    } catch (error) {
+      console.error('API Error:', error);
+      return {};
+    }
+  };
 
   // Цвета для стилей гексов
   const HexColor = 'rgba(51, 153, 204, 0.1)';
@@ -157,7 +178,6 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       // Получает гекс, по которому клик
       const feature = map.forEachFeatureAtPixel(event.pixel, (f) => f) as Feature;
 
-
       // Сбрасываем другие активные гексы
       const source = vectorLayer.getSource()!;
       source.getFeatures().forEach((item) =>{
@@ -176,11 +196,16 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       
       // Если стал активен
       if (isSelected){
-        // Показываем попап
+        // Получаем индекс
         const h3Index = feature.get('h3Index');
+        // Получаем ответ по индексу
+        const info = fetchPolygonInfo(h3Index);
+        // Сетим данные запроса
+        setPolygonInfo(info);
         const geometry = feature.getGeometry() as Polygon;
         const center = geometry.getInteriorPoint().getCoordinates();
-        popupRef.current.innerHTML = h3Index; // Задаем текст
+        //
+        popupRef.current.innerHTML = JSON.stringify(info, null, 2); // Задаем текст
         popupOverlay.current?.setPosition(center);
       }
 
@@ -188,15 +213,7 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       //console.log('h3Index:', feature.get('h3Index'), 'Act:', isSelected);
       
       // Задаем новый стиль гекса
-      const newStyle = new Style({
-        stroke: new Stroke({
-          color: isSelected ? ActBorderHexColor : BorderHexColor,
-          width: isSelected ? 5 : 2,
-        }),
-        fill: new Fill({
-          color: isSelected ? ActHexColor : HexColor,
-        }),
-      });
+      const newStyle = isSelected ? actStyle : defStyle;
       feature.setStyle(newStyle);
     };
 
