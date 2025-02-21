@@ -35,9 +35,9 @@ const MapComponent = () => {
           'EPSG:4326',
           'EPSG:3857'
         ),
-        zoom: 18,
-        minZoom: 12,
-        maxZoom: 18
+        zoom: 17,
+        minZoom: 11,
+        maxZoom: 17
       })
     });
 
@@ -51,7 +51,7 @@ const MapComponent = () => {
       style={{ 
         width: '100vw',
         height: '100vh',
-        padding: '500px',
+        padding: '10px',
         boxSizing: 'border-box',
         display: 'grid',
         gridTemplate: '1fr / 1fr'
