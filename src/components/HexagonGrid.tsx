@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Vector as VectorLayer } from 'ol/layer';
 import { Vector as VectorSource } from 'ol/source';
 import { Feature } from 'ol';
@@ -6,29 +6,28 @@ import { Polygon } from 'ol/geom';
 import { Style, Stroke, Fill } from 'ol/style';
 import { transform } from 'ol/proj';
 import { cellToBoundary, polygonToCells } from 'h3-js';
-import type { Map } from 'ol';
-import type { MapBrowserEvent } from 'ol';
+import Overlay from 'ol/Overlay';
+import type { Map,  MapBrowserEvent} from 'ol';
 import type View from 'ol/View';
 
 interface HexagonGridProps {
-  map: Map | null; // Map из OpenLayers или null
+  map: Map | null;
 }
-const zoomToResolution = (zoom: number): number => {
-  
-  const size = Math.min(Math.max(Math.floor(zoom) - 8, 10), 15)
-  //console.log('Math.floor(zoom):', Math.floor(zoom));
-  //console.log('return:', size);
-  
-  return size;
 
+// Функция сопоставляющая масштаб карты и уровень гексов
+const zoomToResolution = (zoom: number): number => {
+  return Math.round(Math.min(Math.max(zoom - 8, 5), 10));
 };
+
+
 const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
-  // Цвета для стилей
+  // Цвета для стилей гексов
   const HexColor = 'rgba(51, 153, 204, 0.1)';
   const BorderHexColor = 'rgba(51, 153, 204, 1)';
   const ActHexColor = 'rgba(204, 51, 51, 0.1)';
   const ActBorderHexColor = 'rgba(204, 51, 51, 1)';
 
+  // Начальный стиль гексов
   const [vectorLayer] = useState(
     new VectorLayer({
       source: new VectorSource(),
@@ -44,26 +43,27 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
     })
   );
 
+  // Актуальный уровень гексов
   const [currentResolution, setCurrentResolution] = useState(0);
 
   useEffect(() => {
     if (!map) return;
 
-    // Добавляем слой на карту при инициализации компонента
+    // Добавляем слой
     map.addLayer(vectorLayer);
 
     const updateGrid = () => {
 
+      // Получаем масштаб карты
       const view = map.getView() as View;
       const zoom = view.getZoom() || 10;
+
+      // Задаем уровень гексов
       const newResolution = zoomToResolution(zoom);
-
-      //if (newResolution === currentResolution) return;
       setCurrentResolution(newResolution);
-
-      // Получаем границы видимой области
+      
+      // Получаем зону видимости карты
       const extent = map.getView().calculateExtent(map.getSize());
-
       const polygonCoords = [
         transform([extent[0], extent[1]], 'EPSG:3857', 'EPSG:4326'),
         transform([extent[0], extent[3]], 'EPSG:3857', 'EPSG:4326'),
@@ -72,72 +72,69 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       ];
       polygonCoords.push(polygonCoords[0]); // Замыкаем полигон
 
-      // Генерируем H3-индексы для всей видимой области
+      // Определяем отображаемые гексы гексов
       const hexagons = polygonToCells(polygonCoords, currentResolution, true);
-      console.log('length:', hexagons.length, 'Resolution', currentResolution); // Выводим число гексов
-
-      // Обновляем источник данных
+      
       const source = vectorLayer.getSource()!;
       source.clear();
 
+      // Формируем гексы
       hexagons.forEach((h3Index) => {
+
+        // Получаем вершины гекса
         const coords = cellToBoundary(h3Index, true);
 
+        // Преобразуем в плоскость
         const polygon = coords.map((coord) =>
           transform([coord[0], coord[1]], 'EPSG:4326', 'EPSG:3857')
         );
         polygon.push(polygon[0]); // Замыкаем полигон
 
+        // Создаем фигуру
         const hexagon = new Feature({
           geometry: new Polygon([polygon]),
           h3Index: h3Index,
         });
-        //console.log('Adding hexagon:', hexagon); // Debugging line
+
+        // Добавляем в состав слоя
         source.addFeature(hexagon);
       });
-
-      //console.log('LayerGroup :', map.getLayerGroup);
-
     };
 
-    // Инициализация сетки при монтировании компонента
+    // Обновление при первой инициализации
     updateGrid();
 
-    // Обработчики событий
-    map.on('moveend', updateGrid);
-
-    // Стиль для выделения
-    // Обработчик кликов
     const clickHandler = (event: MapBrowserEvent<UIEvent>) => {
-      map.forEachFeatureAtPixel(event.pixel, (feature) => {
-        if (!(feature instanceof Feature)) return;
 
-        const isSelected = !feature.get('selected');
-        feature.set('selected', isSelected);
+      // Получает гекс, по которому клик
+      const feature = map.forEachFeatureAtPixel(event.pixel, (f) => f) as Feature;
+      if (!feature) {return}
 
-        const h3Index = feature.get('h3Index');
-        console.log('Clicked:', h3Index); // Выводим индекс
+      // Выводим индекс гекса
+      console.log('h3Index:', feature.get('h3Index'));
 
-        const newStyle = new Style({
-          stroke: new Stroke({
-            color: isSelected
-              ? ActBorderHexColor // Красный для выбранных
-              : BorderHexColor, // Синий по умолчанию
-            width: 2,
-          }),
-          fill: new Fill({
-            color: isSelected
-              ? ActHexColor // Красный для выбранных
-              : HexColor, // Синий по умолчанию
-          }),
-        });
-        feature.setStyle(newStyle);
-        vectorLayer.changed();
+      // Меняем состояние гекса
+      const isSelected = !feature.get('selected');
+      feature.set('selected', isSelected);
+     
+      // Задаем новый стиль гекса
+      const newStyle = new Style({
+        stroke: new Stroke({
+          color: isSelected ? ActBorderHexColor : BorderHexColor,
+          width: 2,
+        }),
+        fill: new Fill({
+          color: isSelected ? ActHexColor : HexColor,
+        }),
       });
+      feature.setStyle(newStyle);
     };
 
+    // Инициализация событий
+    map.on('moveend', updateGrid);
     map.on('click', clickHandler);
 
+    // Отчистка при выходе
     return () => {
       map.un('moveend', updateGrid);
       map.un('click', clickHandler);

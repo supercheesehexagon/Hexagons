@@ -10,6 +10,7 @@ const MapComponent = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<Map | null>(null);
 
+  // Корды перми
   const Perm4326 = {
     latitude: 58.0104,
     longitude: 56.2294
@@ -18,23 +19,29 @@ const MapComponent = () => {
   useEffect(() => {
     if (!mapRef.current) return;
 
+    // Задаем центр карты
+    const centerMap = Perm4326;
+
+    // Создаем карту
     const initialMap = new Map({
       target: mapRef.current,
       layers: [
         new TileLayer({ source: new OSM() })
       ],
       view: new View({
+        // Преобразуем на сферу
         center: transform(
-          [Perm4326.longitude, Perm4326.latitude],
+          [centerMap.longitude, centerMap.latitude],
           'EPSG:4326',
           'EPSG:3857'
         ),
-        zoom: 18
+        zoom: 18,
+        minZoom: 12,
+        maxZoom: 18
       })
     });
 
     setMap(initialMap);
-
     return () => initialMap.setTarget(undefined);
   }, []);
 
@@ -49,7 +56,7 @@ const MapComponent = () => {
         display: 'grid',
         gridTemplate: '1fr / 1fr'
       }}
-    >
+    > 
       {map && <HexagonGrid map={map} />}
     </div>
   );
