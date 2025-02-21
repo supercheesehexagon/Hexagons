@@ -8,7 +8,7 @@ import { transform } from 'ol/proj';
 import { cellToBoundary, polygonToCells } from 'h3-js';
 import type { Map,  MapBrowserEvent} from 'ol';
 import type View from 'ol/View';
-import Overlay from 'ol/Overlay'
+import Overlay from 'ol/Overlay';
 
 interface HexagonGridProps {
   map: Map | null;
@@ -29,19 +29,33 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
   const ActHexColor = 'rgba(204, 51, 51, 0.1)';
   const ActBorderHexColor = 'rgba(204, 51, 51, 1)';
 
-  // Начальный стиль гексов
+  // Стандартный стиль
+  const defStyle = new Style({
+    stroke: new Stroke({
+      color: BorderHexColor,
+      width: 2,
+    }),
+    fill: new Fill({
+      color: HexColor,
+    }),
+  });
+    
+  // Активный стиль
+  const actStyle = new Style({
+    stroke: new Stroke({
+      color: ActBorderHexColor,
+      width: 5
+    }),
+    fill: new Fill({
+      color: ActHexColor,
+    }),
+  });
+
+  // Создаем слой для сетки
   const [vectorLayer] = useState(
     new VectorLayer({
       source: new VectorSource(),
-      style: new Style({
-        stroke: new Stroke({
-          color: BorderHexColor,
-          width: 2,
-        }),
-        fill: new Fill({
-          color: HexColor,
-        }),
-      }),
+      style: defStyle,
     })
   );
 
@@ -50,7 +64,7 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
   
   // Добавляем ссылки для попапа
   const popupRef = useRef<HTMLDivElement>(document.createElement('div'));
-  const popupOverlay = useRef<Overlay>();
+  const popupOverlay = useRef<Overlay>(null) ;
   
   useEffect(() => {
     if (!map) return;
@@ -60,15 +74,16 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       element: popupRef.current,
       positioning: 'bottom-center',
       offset: [0, -15],
-      autoPan: false
+      autoPan: false,
     });
     
     // Стили для попапа
     popupRef.current.style.background = 'white';
     popupRef.current.style.padding = '100px';
-    popupRef.current.style.border = '10px solid #333';
+    popupRef.current.style.border = '5px solid #333';
     popupRef.current.style.borderRadius = '100px';
     popupRef.current.style.boxShadow = '0 20px 40px rgba(0,0,0,0.2)';
+
     
     // Добавляем попап
     map.addOverlay(popupOverlay.current);
@@ -78,6 +93,9 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
 
     // Обновление сетки
     const updateGrid = () => {
+
+      // Сбрасываем попап при каждом обновлении
+      popupOverlay.current?.setPosition(undefined);
 
       const view = map.getView() as View; if (!view){return}
       
@@ -98,7 +116,7 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       const newResolution = zoomToResolution(zoom);
       setCurrentResolution(newResolution);
       
-      // Определяем отображаемые гексы гексов
+      // Определяем отображаемые гексы
       const hexagons = polygonToCells(polygonCoords, currentResolution, true);
       
       // Получаем начинку слоя
@@ -138,6 +156,18 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
 
       // Получает гекс, по которому клик
       const feature = map.forEachFeatureAtPixel(event.pixel, (f) => f) as Feature;
+
+
+      // Сбрасываем другие активные гексы
+      const source = vectorLayer.getSource()!;
+      source.getFeatures().forEach((item) =>{
+        if (feature!=item && item.get('selected')){
+          item.set('selected', false);
+          item.setStyle(defStyle);
+        }
+      })
+      
+      // Если клик вне сетки, выходим
       if (!feature) {return}
 
       // Меняем состояние гекса
@@ -155,13 +185,13 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       }
 
       // Выводим индекс гекса
-      console.log('h3Index:', feature.get('h3Index'));
-     
+      //console.log('h3Index:', feature.get('h3Index'), 'Act:', isSelected);
+      
       // Задаем новый стиль гекса
       const newStyle = new Style({
         stroke: new Stroke({
           color: isSelected ? ActBorderHexColor : BorderHexColor,
-          width: 2,
+          width: isSelected ? 5 : 2,
         }),
         fill: new Fill({
           color: isSelected ? ActHexColor : HexColor,
