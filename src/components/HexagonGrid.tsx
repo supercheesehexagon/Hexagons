@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState} from 'react';
 import { Vector as VectorLayer } from 'ol/layer';
 import { Vector as VectorSource } from 'ol/source';
 import { Feature } from 'ol';
@@ -6,7 +6,6 @@ import { Polygon } from 'ol/geom';
 import { Style, Stroke, Fill } from 'ol/style';
 import { transform } from 'ol/proj';
 import { cellToBoundary, polygonToCells } from 'h3-js';
-import Overlay from 'ol/Overlay';
 import type { Map,  MapBrowserEvent} from 'ol';
 import type View from 'ol/View';
 
