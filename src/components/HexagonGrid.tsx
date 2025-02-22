@@ -99,10 +99,10 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
     });
     
     // Стили для попапа
-    popupRef.current.style.background = 'white';
-    popupRef.current.style.padding = '100px';
-    popupRef.current.style.border = '5px solid #333';
-    popupRef.current.style.borderRadius = '100px';
+    popupRef.current.style.background = 'rgba(255, 255, 255, 1)';
+    popupRef.current.style.padding = '70px';
+    popupRef.current.style.border = '3px solid #333';
+    popupRef.current.style.borderRadius = '40px';
     popupRef.current.style.boxShadow = '0 20px 40px rgba(0,0,0,0.2)';
 
     
