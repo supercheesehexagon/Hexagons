@@ -6,9 +6,10 @@ import { Polygon } from 'ol/geom';
 import { Style, Stroke, Fill } from 'ol/style';
 import { transform } from 'ol/proj';
 import { cellToBoundary, polygonToCells } from 'h3-js';
+import axios from 'axios';
+import Overlay from 'ol/Overlay';
 import type { Map,  MapBrowserEvent} from 'ol';
 import type View from 'ol/View';
-import Overlay from 'ol/Overlay';
 
 interface HexagonGridProps {
   map: Map | null;
@@ -22,21 +23,40 @@ const zoomToResolution = (zoom: number): number => {
 
 
 const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
-  const [polygonInfo, setPolygonInfo] = useState<{[key: string]: any}>({});
+  //const [polygonInfo, setPolygonInfo] = useState<{[key: string]: any}>({});
 
   // Функции для API запросов
+  const fetchPolygons = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/polygons');
+      
+      // Конвертируем в словарь
+      const polygonsDictionary = response.data.reduce((acc: { [key: string]: any }, polygon: any) => {
+        acc[polygon.h3_index] = polygon; // Use h3_index as the key
+        return acc;
+      }, {});
+      
+      return polygonsDictionary;
+    } catch (error) {
+      console.error('Error fetching polygons:', error);
+      return { error: 'Failed to fetch polygons' };
+    }
+  };
+
   const fetchPolygonInfo = async (h3Index: string) => {
     try {
       // Если уровень 10
+      //h3Index = 'fff';
+
       if(currentResolution == 10){
-        const response = await fetch(`/api/polygon/${h3Index}/info`);
-        const data = await response.json();
-        return data;
+        const response = await axios.get(`http://localhost:5000/api/polygon/${h3Index}/info`);
+        console.log(response);
+        return response.data;
       }
       else{
-        const response = await fetch(`/api/polygon/${currentResolution}/${h3Index}/info`);
-        const data = await response.json();
-        return data;     
+        console.log('индекс', h3Index);
+        const response = await axios.get(`http://localhost:5000/api/polygon/${currentResolution}/${h3Index}/info`);
+        return response.data;   
       }
     } catch (error) {
       console.error('API Error:', error);
@@ -170,7 +190,11 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
     // Обновление при первой инициализации
     updateGrid();
 
-    const clickHandler = (event: MapBrowserEvent<UIEvent>) => {
+    // Выводим всю инфу о всех гексах
+    console.log(fetchPolygons());
+
+
+    const clickHandler = async (event: MapBrowserEvent<UIEvent>) => {
 
       // Сбрасываем попап при каждом клике
       popupOverlay.current?.setPosition(undefined);
@@ -201,11 +225,23 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
         // Получаем ответ по индексу
         const info = fetchPolygonInfo(h3Index);
         // Сетим данные запроса
-        setPolygonInfo(info);
+        //setPolygonInfo(info);
+
         const geometry = feature.getGeometry() as Polygon;
         const center = geometry.getInteriorPoint().getCoordinates();
-        //
-        popupRef.current.innerHTML = JSON.stringify(info, null, 2); // Задаем текст
+        
+        const result = await(info); // Получаем данные мз info
+        console.log(result);
+
+        // Формируем текст окна    
+        const textData = `Resources:
+        | Gold: ${result.gold}
+        | Wood: ${result.wood}
+        | Ore: ${result.ore}`;
+
+        popupRef.current.innerHTML = textData; // Задаем текст
+
+
         popupOverlay.current?.setPosition(center);
       }
 
