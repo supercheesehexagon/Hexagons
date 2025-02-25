@@ -36,7 +36,7 @@ const MapComponent = () => {
           'EPSG:3857'
         ),
         zoom: 17,
-        minZoom: 11,
+        minZoom: 0,
         maxZoom: 17
       })
     });

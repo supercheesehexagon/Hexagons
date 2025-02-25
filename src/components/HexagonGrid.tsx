@@ -5,7 +5,7 @@ import { Feature } from 'ol';
 import { Polygon } from 'ol/geom';
 import { Style, Stroke, Fill } from 'ol/style';
 import { transform } from 'ol/proj';
-import { cellToBoundary, polygonToCells } from 'h3-js';
+import { cellToBoundary, getHexagonEdgeLengthAvg, polygonToCells} from 'h3-js';
 import axios from 'axios';
 import Overlay from 'ol/Overlay';
 import type { Map,  MapBrowserEvent} from 'ol';
@@ -23,43 +23,44 @@ const zoomToResolution = (zoom: number): number => {
 
 
 const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
-  //const [polygonInfo, setPolygonInfo] = useState<{[key: string]: any}>({});
+  
+  /*
 
-  // Функции для API запросов
+  const [polygonInfo, setPolygonInfo] = useState<{[key: string]: any}>({});
+  
   const fetchPolygons = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/polygons');
       
       // Конвертируем в словарь
       const polygonsDictionary = response.data.reduce((acc: { [key: string]: any }, polygon: any) => {
-        acc[polygon.h3_index] = polygon; // Use h3_index as the key
+        acc[polygon.h3_index] = polygon;
         return acc;
-      }, {});
-      
-      return polygonsDictionary;
-    } catch (error) {
-      console.error('Error fetching polygons:', error);
-      return { error: 'Failed to fetch polygons' };
-    }
+        }, {});
+        
+        return polygonsDictionary;
+        } catch (error) {
+          console.error('Error fetching polygons:', error);
+          return { error: 'Failed to fetch polygons' };
+          }
   };
 
+  */
+         
+  // Функции для API запросов
   const fetchPolygonInfo = async (h3Index: string) => {
     try {
       // Если уровень 10
-      //h3Index = 'fff';
-
       if(currentResolution == 10){
         const response = await axios.get(`http://localhost:5000/api/polygon/${h3Index}/info`);
-        console.log(response);
         return response.data;
       }
       else{
-        console.log('индекс', h3Index);
         const response = await axios.get(`http://localhost:5000/api/polygon/${currentResolution}/${h3Index}/info`);
         return response.data;   
       }
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('API Error', error);
       return {};
     }
   };
@@ -67,8 +68,8 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
   // Цвета для стилей гексов
   const HexColor = 'rgba(51, 153, 204, 0.1)';
   const BorderHexColor = 'rgba(51, 153, 204, 1)';
-  const ActHexColor = 'rgba(204, 51, 51, 0.1)';
-  const ActBorderHexColor = 'rgba(204, 51, 51, 1)';
+  const ActHexColor = 'rgba(204, 51, 51, 0.5)';
+  const ActBorderHexColor = 'rgba(204, 51, 51, 0)';
 
   // Стандартный стиль
   const defStyle = new Style({
@@ -85,7 +86,7 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
   const actStyle = new Style({
     stroke: new Stroke({
       color: ActBorderHexColor,
-      width: 5
+      width: 3
     }),
     fill: new Fill({
       color: ActHexColor,
@@ -102,14 +103,14 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
 
   // Актуальный уровень гексов
   const [currentResolution, setCurrentResolution] = useState(10);
-  
+  // Выделенные гекс
+  const [selectedH3Index, setSelectedH3Index] = useState<string | null>(null); // Состояние для выбранного шестиугольника
   // Добавляем ссылки для попапа
   const popupRef = useRef<HTMLDivElement>(document.createElement('div'));
   const popupOverlay = useRef<Overlay>(null) ;
   
   useEffect(() => {
     if (!map) return;
-
     // Инициализация попапа
     popupOverlay.current = new Overlay({
       element: popupRef.current,
@@ -118,7 +119,7 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       autoPan: false,
     });
     
-    // Стили для попапа
+    // Стиль для попапа
     popupRef.current.style.background = 'rgba(255, 255, 255, 1)';
     popupRef.current.style.padding = '70px';
     popupRef.current.style.border = '3px solid #333';
@@ -135,30 +136,43 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
     // Обновление сетки
     const updateGrid = () => {
 
+      //console.log('SelectedH3Index', selectedH3Index);
       // Сбрасываем попап при каждом обновлении
       popupOverlay.current?.setPosition(undefined);
 
-      const view = map.getView() as View; if (!view){return}
-      
       // Получаем зону видимости карты
-      const extent = view.calculateExtent(map.getSize());
-      const polygonCoords = [
-        transform([extent[0], extent[1]], 'EPSG:3857', 'EPSG:4326'),
-        transform([extent[0], extent[3]], 'EPSG:3857', 'EPSG:4326'),
-        transform([extent[2], extent[3]], 'EPSG:3857', 'EPSG:4326'),
-        transform([extent[2], extent[1]], 'EPSG:3857', 'EPSG:4326'),
-      ];
-      polygonCoords.push(polygonCoords[0]); // Замыкаем полигон
-      
-      // Получаем масштаб карты
+      const view = map.getView() as View; if (!view){return}
+      const extent = view.calculateExtent(map.getSize()); if (!extent){return}
       const zoom = view.getZoom(); if (!zoom){return}
 
       // Задаем уровень гексов
       const newResolution = zoomToResolution(zoom);
       setCurrentResolution(newResolution);
+
+      // Получаем размер гексов в метрах
+      const hexSizeMeters = getHexagonEdgeLengthAvg(newResolution, 'm');
+      
+      // Берем дважды для уверенности
+      const buffer = hexSizeMeters * 2;
+      
+      // Расширяем поле видимости
+      const expandedExtent = [
+        extent[0] - buffer,
+        extent[1] - buffer,
+        extent[2] + buffer,
+        extent[3] + buffer
+      ];
+
+      const polygonCoords = [
+        transform([expandedExtent[0], expandedExtent[1]], 'EPSG:3857', 'EPSG:4326'),
+        transform([expandedExtent[0], expandedExtent[3]], 'EPSG:3857', 'EPSG:4326'),
+        transform([expandedExtent[2], expandedExtent[3]], 'EPSG:3857', 'EPSG:4326'),
+        transform([expandedExtent[2], expandedExtent[1]], 'EPSG:3857', 'EPSG:4326'),
+      ];
+      polygonCoords.push(polygonCoords[0]); // Замыкаем полигон
       
       // Определяем отображаемые гексы
-      const hexagons = polygonToCells(polygonCoords, currentResolution, true);
+      const hexagons = polygonToCells(polygonCoords, newResolution, true);
       
       // Получаем начинку слоя
       const source = vectorLayer.getSource()!;
@@ -185,52 +199,61 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
         // Добавляем в состав слоя
         source.addFeature(hexagon);
       });
+
+      // Если есть выбранный шестиугольник, обновляем попап
+      //console.log('SelectedH3Index', selectedH3Index);
+      if (selectedH3Index) {
+        const selectedFeature = source.getFeatures().find(f => f.get('h3Index') === selectedH3Index);
+        if (selectedFeature) {
+
+          const geometry = selectedFeature.getGeometry() as Polygon;
+          const center = geometry.getInteriorPoint().getCoordinates();
+          popupOverlay.current?.setPosition(center);
+          selectedFeature.setStyle(actStyle);
+        }
+      }
     };
 
-    // Обновление при первой инициализации
-    updateGrid();
-
-    // Выводим всю инфу о всех гексах
-    console.log(fetchPolygons());
-
-
+    // Событие клика
     const clickHandler = async (event: MapBrowserEvent<UIEvent>) => {
-
-      // Сбрасываем попап при каждом клике
-      popupOverlay.current?.setPosition(undefined);
 
       // Получает гекс, по которому клик
       const feature = map.forEachFeatureAtPixel(event.pixel, (f) => f) as Feature;
+     
+      const source = vectorLayer.getSource()!;
 
       // Сбрасываем другие активные гексы
-      const source = vectorLayer.getSource()!;
       source.getFeatures().forEach((item) =>{
-        if (feature!=item && item.get('selected')){
+        if (feature!=item){
           item.set('selected', false);
           item.setStyle(defStyle);
         }
       })
       
-      // Если клик вне сетки, выходим
-      if (!feature) {return}
-
+      // Если клик не по гексу, выходим
+      if (!feature) {
+        return
+      }
+      
       // Меняем состояние гекса
+      if (feature.get('h3Index') == selectedH3Index){
+        feature.set('selected', true);
+      }
+
       const isSelected = !feature.get('selected');
       feature.set('selected', isSelected);
-      
+
+      //console.log('SelectedH3Index', selectedH3Index);
+
       // Если стал активен
       if (isSelected){
         // Получаем индекс
         const h3Index = feature.get('h3Index');
+        setSelectedH3Index(h3Index); 
+
         // Получаем ответ по индексу
         const info = fetchPolygonInfo(h3Index);
-        // Сетим данные запроса
-        //setPolygonInfo(info);
-
-        const geometry = feature.getGeometry() as Polygon;
-        const center = geometry.getInteriorPoint().getCoordinates();
-        
-        const result = await(info); // Получаем данные мз info
+        const result = await(info);
         console.log(result);
 
         // Формируем текст окна    
@@ -238,19 +261,19 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
         | Gold: ${result.gold}
         | Wood: ${result.wood}
         | Ore: ${result.ore}`;
+        popupRef.current.innerHTML = textData;
 
-        popupRef.current.innerHTML = textData; // Задаем текст
-
-
+        // Получаем корды для попапа
+        const geometry = feature.getGeometry() as Polygon;
+        const center = geometry.getInteriorPoint().getCoordinates();
         popupOverlay.current?.setPosition(center);
-      }
-
-      // Выводим индекс гекса
-      //console.log('h3Index:', feature.get('h3Index'), 'Act:', isSelected);
-      
-      // Задаем новый стиль гекса
-      const newStyle = isSelected ? actStyle : defStyle;
-      feature.setStyle(newStyle);
+        feature.setStyle(actStyle);
+      }else{
+        setSelectedH3Index(null);
+        popupOverlay.current?.setPosition(undefined);
+        feature.setStyle(defStyle)
+      }      
+      //console.log(selectedH3Index);
     };
 
     // Инициализация событий
@@ -264,7 +287,7 @@ const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
       map.un('click', clickHandler);
       map.removeLayer(vectorLayer);
     };
-  }, [map, currentResolution]);
+  }, [map, currentResolution, selectedH3Index]);
 
   return null;
 };
