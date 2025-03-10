@@ -15,6 +15,10 @@ interface HexagonGridProps {
   map: Map | null;
 }
 
+// Параметры для запросов
+const HOST = "localhost";
+const PORT = 5000;
+
 // Функция сопоставляющая масштаб карты и уровень гексов
 const zoomToResolution = (zoom: number): number => {
   const Resolution = Math.min(Math.max(5, Math.floor(zoom*0.8) - 3), 10);
@@ -23,40 +27,17 @@ const zoomToResolution = (zoom: number): number => {
 
 
 const HexagonGrid: React.FC<HexagonGridProps> = ({ map }) => {
-  
-  /*
 
-  const [polygonInfo, setPolygonInfo] = useState<{[key: string]: any}>({});
-  
-  const fetchPolygons = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/polygons');
-      
-      // Конвертируем в словарь
-      const polygonsDictionary = response.data.reduce((acc: { [key: string]: any }, polygon: any) => {
-        acc[polygon.h3_index] = polygon;
-        return acc;
-        }, {});
-        
-        return polygonsDictionary;
-        } catch (error) {
-          console.error('Error fetching polygons:', error);
-          return { error: 'Failed to fetch polygons' };
-          }
-  };
-
-  */
-         
   // Функции для API запросов
   const fetchPolygonInfo = async (h3Index: string) => {
     try {
       // Если уровень 10
       if(currentResolution == 10){
-        const response = await axios.get(`http://localhost:5000/api/polygon/${h3Index}/info`);
+        const response = await axios.get(`http://${HOST}:${PORT}/api/polygon/${h3Index}/info`);
         return response.data;
       }
       else{
-        const response = await axios.get(`http://localhost:5000/api/polygon/${currentResolution}/${h3Index}/info`);
+        const response = await axios.get(`http://${HOST}:${PORT}/api/polygon/${currentResolution}/${h3Index}/info`);
         return response.data;   
       }
     } catch (error) {
